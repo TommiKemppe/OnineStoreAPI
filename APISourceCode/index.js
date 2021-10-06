@@ -22,25 +22,26 @@ const deliveryTypes = [
     {deliveryTypeId: 2, name: "Pickup"}
 ]
 
-//const dateOfPosting = new Date(2021, 09, 13);
+//Initialize date of posting for test posts
 var d = new Date();
 var dateOfPosting = d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); 
 
+//Test postings
 let postings = [
-    {postingId: uuidv4(), title: "Adidas superstar", description: "Nice shoes", 
-    category: "Shoes", location: "Oulu", image: {imageId: uuidv4(), testString: "Test"}, 
+    {postingId: "63e24f86-f685-4315-8f93-56bfda29a6a5", title: "Adidas superstar", description: "Nice shoes", 
+    category: "Shoes", location: "Oulu", images: [{imageId: uuidv4(), imageURL: "/photos/upload/1.jpg"}], 
     price: 65.05, postingDate: dateOfPosting, deliveryType: deliveryTypes[0], 
     firstName: "Eero", lastName: "Erkkilä", email: "eeroerkkila@yahoo.com",
     phoneNumber: "0401231231", userId: "123asd"},
 
-    {postingId: uuidv4(), title: "Nike superstar", description: "Nicer shoes", 
-    category: "Shoes", location: "Kemi", image: {imageId: uuidv4(), testString: "Testii"}, 
+    {postingId: "372fb9da-dd9e-41fb-8588-832c3207f16c", title: "Nike superstar", description: "Nicer shoes", 
+    category: "Shoes", location: "Kemi", images: [{imageId: uuidv4(), imageURL: "/photos/upload/2.jpg"}], 
     price: 65.04, postingDate: dateOfPosting, deliveryType: deliveryTypes[1], 
     firstName: "Eero", lastName: "Erkkilä", email: "eeroerkkila@yahoo.com",
     phoneNumber: "0401231231", userId: "123asd"},
 
-    {postingId: uuidv4(), title: "Kylpytakki", description: "Komia", 
-    category: "Clothing", location: "Oulu", image: {imageId: uuidv4(), testString: "Tests"}, 
+    {postingId: "307ffcb5-e5e5-491a-adaa-bdedf5c82195", title: "Kylpytakki", description: "Komia", 
+    category: "Clothing", location: "Oulu", images: [{imageId: uuidv4(), imageURL: "/photos/upload/3.jpg"}], 
     price: 22.45, postingDate: dateOfPosting, deliveryType: deliveryTypes[0], 
     firstName: "Kalle", lastName: "Kalliala", email: "kallekalliala@msn.com",
     phoneNumber: "0401231232", userId: "666asd"}
@@ -49,6 +50,8 @@ let postings = [
 let users = [
 
 ]
+
+let loggedInUserID = "";
 
 
 //----------- Authentication and signup-------------//
@@ -59,6 +62,7 @@ passport.use(new BasicStrategy(
 
         const searchResult = users.find(user => ((username = users.username ) && (password = users.password)))
         if (searchResult != undefined) {
+            loggedInUserID = searchResult.userID
             done(null, searchResult); //credential match
         } else {
             done(null, false); //no credential match
@@ -73,18 +77,20 @@ app.get('/protectedResource', passport.authenticate('basic', {session: false}), 
 
 app.post('/signup', (req, res) => {
     const newUser = {
+        userID: uuidv4(),
         username: req.body.username,
         password: req.body.password,
         email: req.body.email
     }
     users.push(newUser);
+    loggedInUserID = newUser.userID;
     res.sendStatus(201);
 })
 
 
 //----------- Requests -------------//
 app.get('/', (req, res) => {
-    res.send('Hieno verkkokauppa')
+    res.send('Online store API made by Jimi Lindström and Tommi Kemppe. Code and specifications can be found from https://github.com/TommiKemppe/OnineStoreAPI')
 });
 
 app.get('/posting', (req, res) => {
@@ -154,14 +160,12 @@ app.get('/posting/date/:date', (req, res) => {
 
 app.post('/posting', (req, res) => {
     console.log(req.body);
-    //postings.push({id: uuidv4(), title: req.body.title});
-    //res.sendStatus(201);
 
     postings.push({postingId: uuidv4(), title: req.body.title, description: req.body.description, 
     category: req.body.category, location: req.body.location, 
     price: req.body.price, postingDate: req.body.date, deliveryType: deliveryTypes.find(x => x.deliveryTypeId === req.body.deliveryTypeId), 
     firstName: req.body.firstName, lastName: req.body.lastName, email: req.body.email,
-    phoneNumber: req.body.phoneNumber, userId: req.body.userId})
+    phoneNumber: req.body.phoneNumber, userId: loggedInUserID})
     
     res.sendStatus(201);
 });
@@ -171,6 +175,9 @@ app.put('/posting/:id', (req, res) => {
     const index = postings.findIndex(d => d.postingId === req.params.id);
     if(index === -1){
         res.sendStatus(404);
+    } else if (postings[index].userId != loggedInUserID) //check if the posting is made by the user that is logged in
+    {
+        res.sendStatus(401)
     } else {
         postings[index].title = req.body.title;
         postings[index].description = req.body.description;
@@ -194,6 +201,9 @@ app.delete('/posting/:id', (req, res) => {
     const index = postings.findIndex(d => d.postingId === req.params.id);
     if(index === -1){
         res.sendStatus(404);
+    } else if (postings[index].userId != loggedInUserID) //check if the posting is made by the user that is logged in
+    {
+        res.sendStatus(401)
     } else {
         postings.splice(index, 1);
         res.sendStatus(200);
@@ -202,30 +212,27 @@ app.delete('/posting/:id', (req, res) => {
 
 //-----Upload an image----//
 
+//test function for single image posting
 app.post('/profile', upload.single('avatar'), function (req, res, next) {
-    // req.file is the `avatar` file
-    // req.body will hold the text fields, if there were any
     console.log(req.file);
     res.sendStatus(200);
   })
   
-  app.post('/photos/upload', upload.array('photos', 4), function (req, res, next) {
-    // req.files is array of `photos` files
-    // req.body will contain the text fields, if there were any
+app.post('/photos/upload', upload.array('photos', 4), function (req, res, next) {
     console.log(req.files);
     res.sendStatus(200);
   })
   
-  const cpUpload = upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'gallery', maxCount: 8 }])
-  app.post('/cool-profile', cpUpload, function (req, res, next) {
-    // req.files is an object (String -> Array) where fieldname is the key, and the value is array of files
-    //
-    // e.g.
-    //  req.files['avatar'][0] -> File
-    //  req.files['gallery'] -> Array
-    //
-    // req.body will contain the text fields, if there were any
-  })
+//   const cpUpload = upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'gallery', maxCount: 8 }])
+//   app.post('/cool-profile', cpUpload, function (req, res, next) {
+//     // req.files is an object (String -> Array) where fieldname is the key, and the value is array of files
+//     //
+//     // e.g.
+//     //  req.files['avatar'][0] -> File
+//     //  req.files['gallery'] -> Array
+//     //
+//     // req.body will contain the text fields, if there were any
+//   })
 
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`)
